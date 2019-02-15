@@ -35,7 +35,7 @@ function itemToUnit(item) {
 		type: 'todolist',
 		name: item.title,
 		internalId: internalId,
-		endpoint: 'acme_task_tracker-1gHu4Mdk.' + internalId,
+		// endpoint: 'acme_task_tracker-1gHu4Mdk.' + internalId,
 	};
 }
 
@@ -48,16 +48,13 @@ app.post("/refresh", async function(req, res) {
 		headers: {authorization: `Bearer ${req.body.authDetails.accessToken}`}
 	});
 	console.log('list', list);
-	const units = list.map(itemToUnit);
-	console.log('units', units);
-	console.log('url', `https://connect.olisto.com/api/v1/channelaccounts/${req.body.channelAccountId}/units`);
-	const response = await request.patch({
+	await request.patch({
 		json: true,
 		uri: `https://connect.olisto.com/api/v1/channelaccounts/${req.body.channelAccountId}/units`,
 		headers: {authorization: `Bearer ${olistoToken}`},
-		body: units,
+		body: list.map(itemToUnit),
 	});
-	console.log('response', response);
+	//TODO: Initial state updates
 
 	await request.post({
 		json: true,
@@ -67,38 +64,22 @@ app.post("/refresh", async function(req, res) {
 			url: `${myWebhookBaseUrl}/${req.body.channelAccountId}`,
 		}
 	});
-
 });
 
 class ActionError extends Error {};
 
 app.post('/action', async function(req, res) {
-	/*
-	 {
-	 "webhookType": "action",
-	 "executionId": "UFyCWGIp8",
-	 "channelAccountId": "5c65e011df25562ba4fff032",
-	 "actionData": {
-	 "action": "addItem",
-	 "isChecked": "0",
-	 "itemName": "New item"
-	 },
-	 "unitId": "5c65e05368423645f5e47062"
-	 }
-	 */
 	try {
 		const ca = await request.get({
 			json: true,
 			uri: `https://connect.olisto.com/api/v1/channelaccounts/${req.body.channelAccountId}`,
 			headers: {authorization: `Bearer ${olistoToken}`},
 		});
-		console.log('ca', ca);
 		const unit = await request.get({
 			json: true,
 			uri: `https://connect.olisto.com/api/v1/channelaccounts/${req.body.channelAccountId}/units/${req.body.unitId}`,
 			headers: {authorization: `Bearer ${olistoToken}`},
 		});
-		console.log('unit', unit);
 		switch(req.body.actionData.action) {
 			case 'addItem':
 				await request.post({
@@ -172,6 +153,3 @@ app.post(`${webhookPath}/:caId`, async function(req, res) {
 		console.log('error handling webhook: ', req.body, e);
 	}
 });
-
-
-// {"affectedTriggs":[],"timeTakenMs":21,"stateUpdate":{"rk":"events.acme_task_tracker-1gHu4Mdk.testuser1.1","msg":{"itemCreatedEvent":1,"listName":"Shopping list","itemName":"Blub","uncompletedItemCount":15}}}
