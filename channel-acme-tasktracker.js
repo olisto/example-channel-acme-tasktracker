@@ -7,7 +7,7 @@ const apiBaseUrl = 'http://localhost:4923';
 const webhookPath = '/webhooks/VADR2EDDM7oMICE';
 const myWebhookBaseUrl = 'http://localhost:4924' + webhookPath;
 const olistoBaseUrl = 'https://connect-dev.olisto.com';
-const olistoStateUrl = olistoBaseUrl + '/api/v1/state/channels/X-acme_task_tracker-kBCZuata/units';
+const olistoStateUrl = '/api/v1/state/channels/X-acme_task_tracker-kBCZuata/units';
 const olistoToken = 'BLGirkesSYufhw2nnyi1P50oV1BlhKbq';
 
 const app = express();
@@ -24,6 +24,14 @@ app.listen(4924, function() {
 	console.log("channel-acme-tasktracker running.");
 });
 
+function olistoRequest(resource, body) {
+	return {json: true, url: olistoBaseUrl + resource, headers: {authorization: `Bearer ${olistoToken}`}, body};
+}
+
+function todoRequest(resource, authorization, body) {
+	console.log('authorization: ' + authorization);
+	return {json: true, url: apiBaseUrl + resource, headers: {authorization}, body};
+}
 
 function listToUnit(list) {
 	const internalId = `${list.owner_id}.${list.id}`;
@@ -37,69 +45,40 @@ function listToUnit(list) {
 app.post('/account-linked', async function(req, res) {
 	console.log('account-linked body', req.body);
 	res.send();
-	const lists = await request.get({
-		json: true,
-		url: `${apiBaseUrl}/api/v1/list`,
-		headers: {authorization: req.headers['authorization']},
-	});
+	const lists = await request.get(todoRequest('/api/v1/list', req.headers['authorization']));
 
 	// Convert todo-lists to Olisto units
 	const units = lists.map(listToUnit);
 
 	// Push list of units to Olisto API
-	await request.put({
-		json: true,
-		uri: `${olistoBaseUrl}/api/v1/channelaccounts/${req.body.channelAccountId}/units`,
-		headers: {authorization: `Bearer ${olistoToken}`},
-		body: units,
-	});
+	await request.put(olistoRequest(`/api/v1/channelaccounts/${req.body.channelAccountId}/units`, units));
 	//TODO: Initial state updates
 
 	// Register webhook with Todolist API
-	await request.post({
-		json: true,
-		url: `${apiBaseUrl}/api/v1/webhook`,
-		headers: {authorization: req.headers['authorization']},
-		body: {
-			url: `${myWebhookBaseUrl}/${req.body.channelAccountId}`,
-		}
-	});
+	await request.post(todoRequest('/api/v1/webhook', req.headers['authorization'], {
+		url: `${myWebhookBaseUrl}/${req.body.channelAccountId}`,
+	}));
 });
 
 app.post('/account-unlinked', async function(req, res) {
 	console.log('account-unlinked body', req.body);
 	res.send();
 	// De-register webhook with Todolist API
-	await request.delete({
-		json: true,
-		url: `${apiBaseUrl}/api/v1/webhook`,
-		headers: {authorization: req.headers['authorization']},
-	});
+	await request.delete(todoRequest('/api/v1/webhook', req.headers['authorization']));
 });
 
 app.post("/refresh", async function(req, res) {
 	res.send();
-	// TODO: Initial refresh
 	// TODO: Send unit list with response body?
 	// Retrieve list of units from Todolist API
 	console.log('req.body', req.body);
-	const lists = await request.get({
-		json: true,
-		url: `${apiBaseUrl}/api/v1/list`,
-		headers: {authorization: req.headers['authorization']},
-	});
+	const lists = await request.get(todoRequest('/api/v1/list', req.headers['authorization']));
 
 	// Convert todo-lists to Olisto units
 	const units = lists.map(listToUnit);
 
 	// Push list of units to Olisto API
-	await request.put({
-		json: true,
-		uri: `${olistoBaseUrl}/api/v1/channelaccounts/${req.body.channelAccountId}/units`,
-		headers: {authorization: `Bearer ${olistoToken}`},
-		body: units,
-	});
-	//TODO: Initial state updates
+	await request.put(olistoRequest(`/api/v1/channelaccounts/${req.body.channelAccountId}/units`, units));
 });
 
 class ActionError extends Error {};
@@ -109,14 +88,10 @@ app.post('/action', async function(req, res) {
 	try {
 		switch(req.body.actionData.action) {
 			case 'addItem':
-				await request.post({
-					json: true,
-					url: `${apiBaseUrl}/api/v1/list/${req.body.unit.internalId.split('.')[1]}/item`,
-					headers: {authorization: req.headers['authorization']},
-					body: {
-						title: req.body.actionData.itemName,
-					}
-				});
+				const itemId = req.body.unit.internalId.split('.')[1];
+				await request.post(todoRequest(`/api/v1/list/${itemId}/item`, req.headers['authorization'], {
+					title: req.body.actionData.itemName,
+				}));
 				break;
 			default: throw new ActionError('channel/unknown-action');
 		}
@@ -153,28 +128,16 @@ async function handleItemUpdate(req) {
 	console.log('internalId: ' + internalId);
 
 	// We'll need the access token to query the number of unchecked items left
-	const ca = await request.get({
-		json: true,
-		uri: `${olistoBaseUrl}/api/v1/channelaccounts/${req.params['caId']}?freshTokens=true`,
-		headers: {authorization: `Bearer ${olistoToken}`},
-	});
+	const ca = await request.get(olistoRequest(`/api/v1/channelaccounts/${req.params['caId']}?freshTokens=true`));
 	console.log('ca', ca);
 
 	// Retrieve the list so that we can count the pending items still on it
-	const list = await request.get({
-		json: true,
-		url: `${apiBaseUrl}/api/v1/list/${req.body.entity.list_id}`,
-		headers: {authorization: `Bearer ${ca.accessToken}`},
-	});
+	const list = await request.get(todoRequest(`/api/v1/list/${req.body.entity.list_id}`, 'Bearer ' + ca.accessToken));
 
 	try {
 		const url = `${olistoStateUrl}/${internalId}`;
-		const res = await request.put({
-			json: true,
-			url,
-			headers: {authorization: `Bearer ${olistoToken}`},
-			body: {[eventName]: 1, listName: list.title, itemName: req.body.entity.title, uncompletedItemCount: list.items.filter((item)=> item.state === 'PENDING').length},
-		});
+		const res = await request.put(olistoRequest(url,
+			{[eventName]: 1, listName: list.title, itemName: req.body.entity.title, uncompletedItemCount: list.items.filter((item)=> item.state === 'PENDING').length}));
 	} catch(e) {
 		console.log('error on put state', e);
 	}
@@ -186,19 +149,11 @@ async function handleListUpdate(req) {
 	// or handle the specific change, which is more neat but also more work.
 	switch(req.body.event) {
 		case 'created':
-			await request.post({
-				json: true,
-				uri: `${olistoBaseUrl}/api/v1/channelaccounts/${req.params['caId']}/units`,
-				body: listToUnit(req.body.entity),
-				headers: {authorization: `Bearer ${olistoToken}`},
-			});
+			request.post(olistoRequest(`/api/v1/channelaccounts/${req.params['caId']}/units`, listToUnit(req.body.entity)));
 			break;
 		case 'removed':
 			const internalId = `${req.body.entity.owner_id}.${req.body.entity.id}`;
-			await request.delete({
-				uri: `${olistoBaseUrl}/api/v1/channelaccounts/${req.params['caId']}/units/?internalId=${internalId}`,
-				headers: {authorization: `Bearer ${olistoToken}`},
-			});
+			request.delete(olistoRequest(`/api/v1/channelaccounts/${req.params['caId']}/units/?internalId=${internalId}`));
 			break;
 	}
 }
