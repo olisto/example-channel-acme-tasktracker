@@ -7,7 +7,7 @@ const apiBaseUrl = 'http://localhost:4923';
 const webhookPath = '/webhooks/VADR2EDDM7oMICE';
 const myWebhookBaseUrl = 'http://localhost:4924' + webhookPath;
 const olistoBaseUrl = 'https://connect-dev.olisto.com';
-const olistoStateUrl = '/api/v1/state/channels/X-acme_task_tracker-kBCZuata/units';
+const olistoStatePath = '/api/v1/state/channels/X-acme_task_tracker-kBCZuata/units';
 const olistoToken = 'BLGirkesSYufhw2nnyi1P50oV1BlhKbq';
 
 const app = express();
@@ -29,16 +29,22 @@ function olistoRequest(resource, body) {
 }
 
 function todoRequest(resource, authorization, body) {
-	console.log('authorization: ' + authorization);
 	return {json: true, url: apiBaseUrl + resource, headers: {authorization}, body};
 }
 
+function internalIdForList(entity) {
+	return `${entity.owner_id}.${entity.id}`;
+}
+
+function internalIdForItem(entity) {
+	return `${entity.owner_id}.${entity.list_id}`;
+}
+
 function listToUnit(list) {
-	const internalId = `${list.owner_id}.${list.id}`;
 	return {
 		type: 'todolist',
 		name: list.title,
-		internalId: internalId,
+		internalId: internalIdForList(list),
 	};
 }
 
@@ -109,52 +115,46 @@ app.post('/action', async function(req, res) {
 });
 
 // Generate state changes and event for item updates
+const eventNames = {created: 'itemCreated', removed: 'itemRemoved', updated: 'itemUpdated'};
 async function handleItemUpdate(req) {
-	let eventName = null;
-	switch(req.body.event) {
-		case 'created':
-			eventName = 'itemCreated';
-			break;
-		case 'removed':
-			eventName = 'itemRemoved';
-			break;
-		case 'updated':
-			eventName = 'itemUpdated';
-			break;
-		default:
-			return console.log(`unhandled event ${req.body.event}`);
-	}
-	const internalId = `${req.body.entity.owner_id}.${req.body.entity.list_id}`;
-	console.log('internalId: ' + internalId);
+	const eventName = eventNames[req.body.event];
+
+	const internalId = internalIdForItem(req.body.entity);
 
 	// We'll need the access token to query the number of unchecked items left
 	const ca = await request.get(olistoRequest(`/api/v1/channelaccounts/${req.params['caId']}?freshTokens=true`));
-	console.log('ca', ca);
 
 	// Retrieve the list so that we can count the pending items still on it
 	const list = await request.get(todoRequest(`/api/v1/list/${req.body.entity.list_id}`, 'Bearer ' + ca.accessToken));
 
-	try {
-		const url = `${olistoStateUrl}/${internalId}`;
-		const res = await request.put(olistoRequest(url,
-			{[eventName]: 1, listName: list.title, itemName: req.body.entity.title, uncompletedItemCount: list.items.filter((item)=> item.state === 'PENDING').length}));
-	} catch(e) {
-		console.log('error on put state', e);
-	}
+	// Create the event @ Olisto
+	await request.put(olistoRequest(`${olistoStatePath}/${internalId}`, {
+		[eventName]: 1,
+		listName: list.title,
+		itemName: req.body.entity.title,
+		uncompletedItemCount: list.items.filter((item) => item.state === 'PENDING').length
+	}));
 }
 
 // Update Olisto's unit representations
 async function handleListUpdate(req) {
-	// 2 options: Either just do a full re-sync, which is easy since we already have code for that,
-	// or handle the specific change, which is more neat but also more work.
+	// A list was created or removed; create or delete Olisto units accordingly
+	// Olisto unit representation for the list
+	const unit = listToUnit(req.body.entity);
 	switch(req.body.event) {
 		case 'created':
-			request.post(olistoRequest(`/api/v1/channelaccounts/${req.params['caId']}/units`, listToUnit(req.body.entity)));
-			break;
+			// Add to the list of units for the given channelAccount
+			return await request.post(olistoRequest(`/api/v1/channelaccounts/${req.params['caId']}/units`, unit));
+		case 'updated':
+			// Update in the list of units for the given channelAccount
+			// updateOnly or keep or ...
+			return await request.patch(olistoRequest(`/api/v1/channelaccounts/${req.params['caId']}/units?updateOnly=true`, [unit]));
 		case 'removed':
-			const internalId = `${req.body.entity.owner_id}.${req.body.entity.id}`;
-			request.delete(olistoRequest(`/api/v1/channelaccounts/${req.params['caId']}/units/?internalId=${internalId}`));
-			break;
+			// Delete all units with in this channelAccount with this internalId (which should be exactly 1 unit)
+			const internalId = internalIdForList(req.body.entity);
+			return await request.delete(olistoRequest(`/api/v1/channelaccounts/${req.params['caId']}/units/?internalId=${internalId}`));
+		default:
+			console.log(`unhandled list event ${req.body.event}`);
 	}
 }
 
@@ -165,15 +165,10 @@ app.post(`${webhookPath}/:caId`, async function(req, res) {
 		switch(req.body.entity_type) {
 			case 'item':
 				// An item was created, deleted or updated; generate state changes and events
-				await handleItemUpdate(req);
-				break;
+				return await handleItemUpdate(req);
 			case 'list':
 				// A list was added or removed; update unit lists.
-				await handleListUpdate(req);
-				break;
-
-			default:
-				console.log(`update for unknown entity_type ${req.body.entity_type}`);
+				return await handleListUpdate(req);
 		}
 	} catch(e) {
 		console.log('error handling webhook: ', req.body, e);
