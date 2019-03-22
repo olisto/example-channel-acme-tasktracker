@@ -8,7 +8,7 @@ module.exports = {
 	"olistoToken": "XXXXXXX",
 	// The public URL at which the Todolist API and Olisto can reach your fulfillment API.
     // This is the URL Reported by ngrok or whatever tool you use for tunneling.
-	// Should match the 'Callback URL' setting on the channel configuration page on developer.olisto.com
+	// Should match the 'Fulfillment URL' setting on the channel configuration page on developer.olisto.com
 	"fulfillmentBaseUrl": "https://XXXXXXX.ngrok.io",
     // Some secret random string we include in the URL for webhooks from the Todolist API
     // Only accepting requests that include this in the URL helps us to be sort of sure they are authentic.
