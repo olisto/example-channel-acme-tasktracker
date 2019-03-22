@@ -3,12 +3,13 @@ const morgan = require("morgan");
 const helmet = require("helmet");
 const request = require("request-promise-native");
 
-const todolistBaseUrl = 'http://localhost:4923';
-const fulfillmentBaseUrl = 'http://localhost:4924';
-const webhookPath = '/webhooks/VADR2EDDM7oMICE';
-const olistoBaseUrl = 'https://connect-dev.olisto.com';
-const olistoChannelId = 'X-acme_task_tracker-kBCZuata';
-const olistoToken = 'BLGirkesSYufhw2nnyi1P50oV1BlhKbq';
+const todolistBaseUrl = 'https://todo.olisto.com';
+const olistoBaseUrl = 'https://connect.olisto.com';
+
+// These things need to be configured for your situation
+const {fulfillmentBaseUrl, todolistWebhookSecret, olistoChannelId, olistoToken} = require('./config');
+
+const webhookPath = `/webhooks/${todolistWebhookSecret}`;
 
 // The only variable parts to these requests are the resource and possible body
 function olistoRequest(resource, body) {
@@ -16,7 +17,7 @@ function olistoRequest(resource, body) {
 		json: true,
 		url: olistoBaseUrl + resource,
 		headers: {authorization: `Bearer ${olistoToken}`},
-		body
+		body,
 	};
 }
 
@@ -26,7 +27,7 @@ function todoRequest(resource, authorization, body) {
 		json: true,
 		url: todolistBaseUrl + resource,
 		headers: {authorization},
-		body
+		body,
 	};
 }
 
