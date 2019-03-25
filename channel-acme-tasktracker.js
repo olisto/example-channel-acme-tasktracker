@@ -80,6 +80,7 @@ app.listen(4924, function() {
  */
 app.post('/account-linked', async function(req, res) {
 	res.send();
+	console.log('/account-linked request from Olisto:', req.body);
 
 	// Retrieve the list of todo-lists from the TODO-API
 	const lists = await request.get(todoRequest('/api/v1/list', req.headers['authorization']));
@@ -116,8 +117,9 @@ app.post('/account-linked', async function(req, res) {
  * - channelAccountId: String. Id for the disconnected channelaccount
  */
 app.post('/account-unlinked', async function(req, res) {
-	console.log('account-unlinked body', req.body);
 	res.send();
+	console.log('/account-unlinked request from Olisto:', req.body);
+
 	// De-register webhook with Todolist API
 	await request.delete(todoRequest('/api/v1/webhook', req.headers['authorization']));
 });
@@ -130,8 +132,9 @@ app.post('/account-unlinked', async function(req, res) {
  */
 app.post("/refresh", async function(req, res) {
 	res.send();
+	console.log('/refresh request from Olisto:', req.body);
+
 	// Retrieve list of units from Todolist API
-	console.log('req.body', req.body);
 	const lists = await request.get(todoRequest('/api/v1/list', req.headers['authorization']));
 
 	// Convert todo-lists to Olisto units
@@ -161,6 +164,7 @@ app.post("/refresh", async function(req, res) {
  */
 app.post(`${webhookPath}/:caId`, async function(req, res) {
 	res.send();
+	console.log('webhook request from Todolist service:', req.body);
 	switch(req.body.entity_type) {
 		case 'item':
 			// An item was created, deleted or updated; generate state changes and events
@@ -190,7 +194,7 @@ async function handleItemUpdate(req) {
 	}));
 }
 
-// A list was created, updated or removed; create, updated or delete Olisto units accordingly
+// A list was created, updated or removed; create, update or delete Olisto units accordingly
 async function handleListUpdate(req) {
 	// Create an Olisto unit representation for the list
 	const unit = listToUnit(req.body.entity);
@@ -231,7 +235,8 @@ async function handleListUpdate(req) {
  * ...
  */
 app.post('/action', async function(req, res) {
-	console.log('action body', req.body);
+	console.log('/action request from Olisto:', req.body);
+
 	switch(req.body.actionData.action) {
 		case 'addItem':
 			const itemId = req.body.unit.internalId.split('.')[1];
