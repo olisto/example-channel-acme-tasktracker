@@ -141,68 +141,6 @@ app.post("/refresh", async function(req, res) {
 	await request.put(olistoRequest(`/api/v1/channelaccounts/${req.body.channelAccountId}/units`, units));
 });
 
-class ActionError extends Error {};
-
-app.post('/xaction', async function(req, res) {
-	console.log('action body', req.body);
-	try {
-		switch(req.body.actionData.action) {
-			case 'addItem':
-				const itemId = req.body.unit.internalId.split('.')[1];
-				await request.post(todoRequest(`/api/v1/list/${itemId}/item`, req.headers['authorization'], {
-					title: req.body.actionData.itemName,
-				}));
-				break;
-			default: throw new ActionError('channel/unknown-action');
-		}
-		res.send('triggi/ok');
-	} catch(e) {
-		if (e instanceof ActionError) {
-			res.send(e.message);
-		} else {
-			console.log(e);
-			try {
-				res.status(500).send('triggi/channel-internal-error');
-			} catch(_){}
-		}
-	}
-});
-
-/**
- * Invoked by Olisto when an action should be performed
- * The body will contain:
- * - webhookType: String. "action"
- * - channelAccountId: String. Id for the channelaccount related to the unit from which the action is requested
- * - executionId: String. A unique ID that can be included in logs to track the execution of an action.
- * - initId: String. Internal ID of the unit the action is perfored on.
- * - actionData: Object that describes the action; contains the name of the action and any defined perameters.
- *  - action: String. Name of the action
- *  - [parameter name]: Any. Parameter value; 'itemName' in this example.
- * - unit: Object. The unit object as we've reported it to Olisto, including any details if set
- * The handler should respond with a status code that indicates wheter the action executed successfully:
- * - olisto/ok for successful execution
- * - olisto/unknown-action when the channel was unknown
- * - olisto/unit-not-found when the action was performed on an endpoint that is not known (anymore) by the API
- * - olisto/api-unreachable when the API can not be reached
- * - olisto/caught-exception for any unexpected exception during the execution of the action
- * - channel/your-specific-code for any channel- (or api-) specific errors;
- *   human-readable texts should be added through the channel configuration portal.
- * ...
- */
-app.post('/action', async function(req, res) {
-	console.log('action body', req.body);
-	switch(req.body.actionData.action) {
-		case 'addItem':
-			const itemId = req.body.unit.internalId.split('.')[1];
-			await request.post(todoRequest(`/api/v1/list/${itemId}/item`, req.headers['authorization'], {
-				title: req.body.actionData.itemName,
-			}));
-			break;
-		default: throw new ActionError('olisto/unknown-action');
-	}
-	res.send('olisto/ok');
-});
-
 /**
  * Webhook calls from our own API
  * The body will contain:
@@ -271,3 +209,37 @@ async function handleListUpdate(req) {
 	}
 }
 
+/**
+ * Invoked by Olisto when an action should be performed
+ * The body will contain:
+ * - webhookType: String. "action"
+ * - channelAccountId: String. Id for the channelaccount related to the unit from which the action is requested
+ * - executionId: String. A unique ID that can be included in logs to track the execution of an action.
+ * - initId: String. Internal ID of the unit the action is perfored on.
+ * - actionData: Object that describes the action; contains the name of the action and any defined perameters.
+ *  - action: String. Name of the action
+ *  - [parameter name]: Any. Parameter value; 'itemName' in this example.
+ * - unit: Object. The unit object as we've reported it to Olisto, including any details if set
+ * The handler should respond with a status code that indicates wheter the action executed successfully:
+ * - olisto/ok for successful execution
+ * - olisto/unknown-action when the channel was unknown
+ * - olisto/unit-not-found when the action was performed on an endpoint that is not known (anymore) by the API
+ * - olisto/api-unreachable when the API can not be reached
+ * - olisto/caught-exception for any unexpected exception during the execution of the action
+ * - channel/your-specific-code for any channel- (or api-) specific errors;
+ *   human-readable texts should be added through the channel configuration portal.
+ * ...
+ */
+app.post('/action', async function(req, res) {
+	console.log('action body', req.body);
+	switch(req.body.actionData.action) {
+		case 'addItem':
+			const itemId = req.body.unit.internalId.split('.')[1];
+			await request.post(todoRequest(`/api/v1/list/${itemId}/item`, req.headers['authorization'], {
+				title: req.body.actionData.itemName,
+			}));
+			break;
+		default: throw new ActionError('olisto/unknown-action');
+	}
+	res.send('olisto/ok');
+});
