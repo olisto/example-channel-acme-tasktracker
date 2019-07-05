@@ -219,7 +219,7 @@ async function handleListUpdate(req) {
  * - webhookType: String. "action"
  * - channelAccountId: String. Id for the channelaccount related to the unit from which the action is requested
  * - executionId: String. A unique ID that can be included in logs to track the execution of an action.
- * - initId: String. Internal ID of the unit the action is perfored on.
+ * - internalId: String. Internal ID of the unit the action is performed on.
  * - actionData: Object that describes the action; contains the name of the action and any defined perameters.
  *  - action: String. Name of the action
  *  - [parameter name]: Any. Parameter value; 'itemName' in this example.
