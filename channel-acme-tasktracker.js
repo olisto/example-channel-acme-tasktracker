@@ -37,7 +37,7 @@ function todoRequest(resource, authorization, body) {
  * - name: String. The human-readable name for the unit
  * - type: String. Channel-internal identifier that links the unit to a unit-type defined through developer.olisto.com
  * - internalId: String. channel-internal identifier that links the unit to the channel-specific entity
- * internalId must be unique within the channel.
+ * internalId must be unique within the channel and should not contain '.' or '@' characters.
  * Optionally a unit can have a 'details' field which should be an Object containing any information required by the
  * fulfillment API to interact with this unit. We don't need it in this case.
  */
@@ -45,7 +45,7 @@ function listToUnit(list) {
 	return {
 		name: list.title,
 		type: 'todolist',
-		internalId: `${list.owner_id}.${list.id}`,
+		internalId: `${list.owner_id}-${list.id}`,
 	};
 }
 
@@ -98,7 +98,7 @@ app.post('/account-linked', async function(req, res) {
 	 * a data map that maps every reported state to its value
 	 */
 	const stateReports = lists.map((list) => ({
-		internalId: `${list.owner_id}.${list.id}`,
+		internalId: `${list.owner_id}-${list.id}`,
 		states: statesForList(list),
 	}));
 	// Push the state report to Olisto API
@@ -185,7 +185,7 @@ async function handleItemUpdate(req) {
 	const list = await request.get(todoRequest(`/api/v1/list/${req.body.entity.list_id}`, 'Bearer ' + ca.accessToken));
 
 	// Create the event @ Olisto
-	const internalId = `${req.body.entity.owner_id}.${req.body.entity.list_id}`;
+	const internalId = `${req.body.entity.owner_id}-${req.body.entity.list_id}`;
 	await request.put(olistoRequest(`/api/v1/state/channels/${olistoChannelId}/units/${internalId}`, {
 		[eventNames[req.body.event]]: 1,
 		listName: list.title,
@@ -208,7 +208,7 @@ async function handleListUpdate(req) {
 			return await request.patch(olistoRequest(`/api/v1/channelaccounts/${req.params['caId']}/units?updateOnly=true`, [unit]));
 		case 'removed':
 			// Delete all units with in this channelAccount with this internalId (which should be exactly 1 unit)
-			const internalId = `${req.body.entity.owner_id}.${req.body.entity.id}`;
+			const internalId = `${req.body.entity.owner_id}-${req.body.entity.id}`;
 			return await request.delete(olistoRequest(`/api/v1/channelaccounts/${req.params['caId']}/units/?internalId=${internalId}`));
 	}
 }
@@ -239,7 +239,7 @@ app.post('/action', async function(req, res) {
 
 	switch(req.body.actionData.action) {
 		case 'addItem':
-			const itemId = req.body.unit.internalId.split('.')[1];
+			const itemId = req.body.unit.internalId.split('-')[1];
 			await request.post(todoRequest(`/api/v1/list/${itemId}/item`, req.headers['authorization'], {
 				title: req.body.actionData.itemName,
 			}));
