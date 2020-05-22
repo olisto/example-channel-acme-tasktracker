@@ -37,7 +37,7 @@ function todoRequest(resource, authorization, body) {
  * - name: String. The human-readable name for the unit
  * - type: String. Channel-internal identifier that links the unit to a unit-type defined through developer.olisto.com
  * - internalId: String. channel-internal identifier that links the unit to the channel-specific entity
- * internalId must be unique within the channel and should not contain '.' or '@' characters.
+ * internalId must be unique within the channel and must contain only alpha-numeric characters (a-z, A-Z, 0-9), dashes (-) and underscores (_).
  * Optionally a unit can have a 'details' field which should be an Object containing any information required by the
  * fulfillment API to interact with this unit. We don't need it in this case.
  */
