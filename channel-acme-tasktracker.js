@@ -37,9 +37,10 @@ function todoRequest(resource, authorization, body) {
  * - name: String. The human-readable name for the unit
  * - type: String. Channel-internal identifier that links the unit to a unit-type defined through developer.olisto.com
  * - internalId: String. channel-internal identifier that links the unit to the channel-specific entity
- * internalId must be unique within the channel and must contain only alpha-numeric characters (a-z, A-Z, 0-9), dashes (-) and underscores (_).
+ * The internalId must be unique within the channel, across all users ([^1]) and must contain only alpha-numeric characters (a-z, A-Z, 0-9), dashes (-) and underscores (_).
  * Optionally a unit can have a 'details' field which should be an Object containing any information required by the
  * fulfillment API to interact with this unit. We don't need it in this case.
+ * [^1]: Unless units for different users actually represent the same (physical) thing and share the same state; in such cases units for different users can have the same internalId and states changes / events have to be published only once to effect all users.
  */
 function listToUnit(list) {
 	return {
