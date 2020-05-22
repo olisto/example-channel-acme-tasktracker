@@ -248,3 +248,11 @@ app.post('/action', async function(req, res) {
 	}
 	res.send('olisto/ok');
 });
+
+//One or more custom remote options endpoints as defined in the channel description
+//Fetches options from the Todolist API and streams it back to Olisto
+app.get('/remoteOptions', async function(req, res) {
+	console.log('/remote options request from Olisto:', req.body)
+	request.get(todoRequest(`/api/v1/list`, req.headers['authorization']))
+			.pipe(res);
+})
